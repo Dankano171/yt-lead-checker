@@ -1,0 +1,47 @@
+{
+  "dailyBudget": 9000,
+  "cacheTtlDays": 30,
+  "uploadLookbackCount": 20,
+  "thresholds": {
+    "subscriberMin": 10000,
+    "subscriberMax": 500000,
+    "recentVideoCount": 5,
+    "minimumCommentEnabledRecentVideos": 1,
+    "minimumTotalComments": 100,
+    "uploadsWindowDays": 30,
+    "minimumUploads": 2,
+    "commentAverageTiers": [
+      { "minimum": 200, "points": 3 },
+      { "minimum": 100, "points": 2 },
+      { "minimum": 50, "points": 1 }
+    ],
+    "creatorReplyTiers": [
+      { "minimum": 3, "points": 2 },
+      { "minimum": 1, "points": 1 }
+    ]
+  },
+  "scores": {
+    "subscribersInRange": 1,
+    "uploadsQualified": 2,
+    "monetizationSignals": 2
+  },
+  "monetizationSignals": [
+    "patreon",
+    "skool",
+    "whop",
+    "gumroad",
+    "kajabi",
+    "teachable",
+    "discord",
+    "telegram",
+    "course",
+    "membership",
+    "coaching",
+    "sponsor",
+    "shop"
+  ],
+  "maxCommentThreads": 50,
+  "maxDescriptionLinks": 10,
+  "retries": 3,
+  "retryBaseDelayMs": 500
+}

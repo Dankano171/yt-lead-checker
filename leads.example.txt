@@ -1,0 +1,3 @@
+# Add one YouTube channel per line: handle, channel URL, or channel ID
+@YouTubeCreators
+https://www.youtube.com/@YouTubeCreators
