@@ -70,9 +70,9 @@ Each check writes `results.csv` and `results.json` in the output folder. Partial
 
 ## Reading the results
 
-Open `output/results.csv` in a spreadsheet app. Each row is one input. `status` is `PASS`, `FAIL`, `NOT_FOUND`, or `ERROR`; `score` is a heuristic score from 0 to 10. The CSV also contains the channel URL, handle, subscriber count, recent upload and comment metrics (including `totalComments`), creator-reply tally, monetization terms found, description links, and any email address found in the channel's public description.
+Open `output/results.csv` in a spreadsheet app. Each row is one input. `status` is `PASS`, `FAIL`, `NOT_FOUND`, or `ERROR`; `score` is a heuristic score from 0 to 10. The CSV and JSON also contain the channel URL, handle, subscriber count, recent upload and comment metrics (including `totalComments`), creator reply count and reply rate, `questionThreads`, `unansweredQuestions`, monetization terms found, description links, and any email address found in the channel's public description. `creatorReplyRate` is a percentage from 0 to 100, calculated from sampled comment threads.
 
-`why` lists every failed hard requirement. Channels above the subscriber cap but no more than 1.5 times the cap also include `near_cap`. A passing lead has an empty `why`. Use the saved-run summary and failure breakdown with:
+`why` lists every failed hard requirement. Channels above the subscriber cap but no more than 1.5 times the cap also include `near_cap`. A passing channel with a creator reply rate above the configured 90% default includes `creator already answers almost everything` in `why`.
 
 ```sh
 pnpm start report
@@ -90,7 +90,9 @@ The usage log resets on a UTC calendar-day boundary. The local cache expires aft
 
 ## Configuration and development
 
-`config.example.json` documents all thresholds, score weights, monetization signals, retry settings, and API sampling limits. `thresholds.uploadsWindowDays` (default 30) and `thresholds.minimumTotalComments` (default 100) control the comment window and minimum; `thresholds.subscriberMax` sets the subscriber cap (default 500,000). Up to `uploadLookbackCount` most recent uploads (maximum 20) are examined. Customize a copy named `config.json`, or pass another file with `--config`.
+`config.example.json` documents all thresholds, score weights, monetization signals, retry settings, and API sampling limits. `thresholds.uploadsWindowDays` (default 30) and `thresholds.minimumTotalComments` (default 100) control the comment window and minimum; `thresholds.subscriberMax` sets the subscriber cap (default 500,000). `commentTotalTiers`, `unansweredQuestionTiers`, and `creatorReplyRateMin`/`creatorReplyRateMax` configure the scoring thresholds. Up to `uploadLookbackCount` most recent uploads (maximum 20) are examined. Customize a copy named `config.json`, or pass another file with `--config`.
+
+The raw scoring rubric awards 1 point for subscribers in range, 2 for at least two uploads in the window, up to 3 for total recent comments (the configured comment tiers), up to 3 for unanswered question threads (10+: 3, 5-9: 2, 2-4: 1), 1 for a creator reply rate from 5% through 70%, and 2 for monetization signals. Since those raw weights total 12, the result is normalized proportionally and rounded to the nearest integer on a 0-10 scale; full credit remains 10. A creator reply rate above 70% earns no engagement points.
 
 ```sh
 pnpm build
@@ -112,7 +114,7 @@ pnpm run check:secrets
 ## Assumptions
 
 - Comment totals and averages use videos from the configured upload window among the most recent uploads sampled, excluding videos shorter than 70 seconds and videos without a comment count. A creator must meet the configured minimum total comments, and the configured number of these videos must have comments enabled.
-- A creator reply counts once per sampled top-level comment thread if any returned reply has the channel's own channel ID. The sample is at most 50 threads on the most-commented eligible video among the latest `recentVideoCount` eligible uploads.
+- A creator reply counts once per sampled top-level comment thread if any returned reply has the channel's own channel ID. Up to 100 relevant threads from the most-commented eligible video among the latest `recentVideoCount` eligible uploads are sampled in one API request (1 quota unit). A question thread contains a question mark or starts with a question word; unanswered questions have no creator reply. Thus, a normal channel check uses about 4 quota units: channel, upload-playlist, video, and comment-thread requests.
 - The default cache and resume files are local to the working folder; use the same `--out` directory to resume a run.
 
 ## LIMITATIONS

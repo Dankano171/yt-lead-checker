@@ -15,13 +15,17 @@ export interface Config {
     minimumTotalComments: number;
     uploadsWindowDays: number;
     minimumUploads: number;
-    commentAverageTiers: Tier[];
-    creatorReplyTiers: Tier[];
+    commentTotalTiers: Tier[];
+    unansweredQuestionTiers: Tier[];
+    creatorReplyRateMin: number;
+    creatorReplyRateMax: number;
+    creatorReplyRateNoteThreshold: number;
   };
   scores: {
     subscribersInRange: number;
     uploadsQualified: number;
     monetizationSignals: number;
+    creatorReplyRate: number;
   };
   monetizationSignals: string[];
   maxCommentThreads: number;
@@ -44,6 +48,9 @@ export interface LeadResult {
   avgComments?: number;
   totalComments?: number;
   creatorReplies?: number;
+  creatorReplyRate?: number;
+  questionThreads?: number;
+  unansweredQuestions?: number;
   moneySignals?: string;
   emailInDescription?: string;
   links?: string;

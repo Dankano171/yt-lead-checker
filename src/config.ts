@@ -13,20 +13,25 @@ export const DEFAULT_CONFIG: Config = {
     minimumTotalComments: 100,
     uploadsWindowDays: 30,
     minimumUploads: 2,
-    commentAverageTiers: [
+    commentTotalTiers: [
       { minimum: 200, points: 3 },
       { minimum: 100, points: 2 },
       { minimum: 50, points: 1 },
     ],
-    creatorReplyTiers: [
-      { minimum: 3, points: 2 },
-      { minimum: 1, points: 1 },
+    unansweredQuestionTiers: [
+      { minimum: 10, points: 3 },
+      { minimum: 5, points: 2 },
+      { minimum: 2, points: 1 },
     ],
+    creatorReplyRateMin: 5,
+    creatorReplyRateMax: 70,
+    creatorReplyRateNoteThreshold: 90,
   },
   scores: {
     subscribersInRange: 1,
     uploadsQualified: 2,
     monetizationSignals: 2,
+    creatorReplyRate: 1,
   },
   monetizationSignals: [
     "patreon",
@@ -43,7 +48,7 @@ export const DEFAULT_CONFIG: Config = {
     "sponsor",
     "shop",
   ],
-  maxCommentThreads: 50,
+  maxCommentThreads: 100,
   maxDescriptionLinks: 10,
   retries: 3,
   retryBaseDelayMs: 500,
@@ -106,13 +111,22 @@ export function mergeConfig(input: unknown): Config {
       ? fallback
       : positiveNumber(source[key], key, allowZero);
 
-  const tierSetting = (
-    key: "commentAverageTiers" | "creatorReplyTiers",
-    fallback: Tier[],
-  ): Tier[] =>
-    thresholdInput[key] === undefined
-      ? fallback
-      : tiers(thresholdInput[key], key);
+  const tierSetting = (key: string, fallback: Tier[]): Tier[] => {
+    const legacyValue =
+      key === "commentTotalTiers"
+        ? thresholdInput.commentAverageTiers
+        : undefined;
+    const value = thresholdInput[key] ?? legacyValue;
+    return value === undefined ? fallback : tiers(value, key);
+  };
+
+  const percentageSetting = (key: string, fallback: number): number => {
+    const value = numberSetting(thresholdInput, key, fallback, true);
+    if (value > 100) {
+      throw new Error(`Invalid config: ${key} cannot exceed 100.`);
+    }
+    return value;
+  };
 
   const signals =
     input.monetizationSignals === undefined
@@ -184,13 +198,25 @@ export function mergeConfig(input: unknown): Config {
         DEFAULT_CONFIG.thresholds.minimumUploads,
         true,
       ),
-      commentAverageTiers: tierSetting(
-        "commentAverageTiers",
-        DEFAULT_CONFIG.thresholds.commentAverageTiers,
+      commentTotalTiers: tierSetting(
+        "commentTotalTiers",
+        DEFAULT_CONFIG.thresholds.commentTotalTiers,
       ),
-      creatorReplyTiers: tierSetting(
-        "creatorReplyTiers",
-        DEFAULT_CONFIG.thresholds.creatorReplyTiers,
+      unansweredQuestionTiers: tierSetting(
+        "unansweredQuestionTiers",
+        DEFAULT_CONFIG.thresholds.unansweredQuestionTiers,
+      ),
+      creatorReplyRateMin: percentageSetting(
+        "creatorReplyRateMin",
+        DEFAULT_CONFIG.thresholds.creatorReplyRateMin,
+      ),
+      creatorReplyRateMax: percentageSetting(
+        "creatorReplyRateMax",
+        DEFAULT_CONFIG.thresholds.creatorReplyRateMax,
+      ),
+      creatorReplyRateNoteThreshold: percentageSetting(
+        "creatorReplyRateNoteThreshold",
+        DEFAULT_CONFIG.thresholds.creatorReplyRateNoteThreshold,
       ),
     },
     scores: {
@@ -210,6 +236,12 @@ export function mergeConfig(input: unknown): Config {
         scoreInput,
         "monetizationSignals",
         DEFAULT_CONFIG.scores.monetizationSignals,
+        true,
+      ),
+      creatorReplyRate: numberSetting(
+        scoreInput,
+        "creatorReplyRate",
+        DEFAULT_CONFIG.scores.creatorReplyRate,
         true,
       ),
     },
@@ -233,12 +265,17 @@ export function mergeConfig(input: unknown): Config {
       true,
     ),
   };
+  if (!Number.isInteger(config.maxCommentThreads)) {
+    throw new Error(
+      "Invalid config: maxCommentThreads must be a whole number.",
+    );
+  }
   if (config.cacheTtlDays > 30) {
     throw new Error("Invalid config: cacheTtlDays cannot exceed 30 days.");
   }
-  if (config.uploadLookbackCount > 20 || config.maxCommentThreads > 50) {
+  if (config.uploadLookbackCount > 20 || config.maxCommentThreads > 100) {
     throw new Error(
-      "Invalid config: uploadLookbackCount cannot exceed 20 and maxCommentThreads cannot exceed 50.",
+      "Invalid config: uploadLookbackCount cannot exceed 20 and maxCommentThreads cannot exceed 100.",
     );
   }
   if (config.thresholds.recentVideoCount > config.uploadLookbackCount) {
@@ -249,6 +286,14 @@ export function mergeConfig(input: unknown): Config {
   if (config.thresholds.subscriberMin > config.thresholds.subscriberMax) {
     throw new Error(
       "Invalid config: subscriberMin cannot exceed subscriberMax.",
+    );
+  }
+  if (
+    config.thresholds.creatorReplyRateMin >
+    config.thresholds.creatorReplyRateMax
+  ) {
+    throw new Error(
+      "Invalid config: creatorReplyRateMin cannot exceed creatorReplyRateMax.",
     );
   }
   if (

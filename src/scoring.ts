@@ -11,6 +11,9 @@ export interface LeadMetrics {
   totalComments: number;
   commentEnabledVideos: number;
   creatorReplies: number;
+  creatorReplyRate: number;
+  questionThreads: number;
+  unansweredQuestions: number;
   description: string;
   url: string;
 }
@@ -27,24 +30,41 @@ export function scoreLead(metrics: LeadMetrics, config: Config): LeadResult {
 
   let score = subscribersInRange ? scores.subscribersInRange : 0;
   if (uploadsQualified) score += scores.uploadsQualified;
-  for (const tier of thresholds.commentAverageTiers) {
-    if (metrics.avgComments >= tier.minimum) {
+  for (const tier of thresholds.commentTotalTiers) {
+    if (metrics.totalComments >= tier.minimum) {
       score += tier.points;
       break;
     }
   }
-  for (const tier of thresholds.creatorReplyTiers) {
-    if (metrics.creatorReplies >= tier.minimum) {
+  for (const tier of thresholds.unansweredQuestionTiers) {
+    if (metrics.unansweredQuestions >= tier.minimum) {
       score += tier.points;
       break;
     }
   }
+  if (
+    metrics.creatorReplyRate >= thresholds.creatorReplyRateMin &&
+    metrics.creatorReplyRate <= thresholds.creatorReplyRateMax
+  )
+    score += scores.creatorReplyRate;
 
   const descriptionLower = metrics.description.toLowerCase();
   const moneySignals = config.monetizationSignals.filter((signal) =>
     descriptionLower.includes(signal),
   );
   if (moneySignals.length > 0) score += scores.monetizationSignals;
+  const maximumRawScore =
+    scores.subscribersInRange +
+    scores.uploadsQualified +
+    Math.max(0, ...thresholds.commentTotalTiers.map((tier) => tier.points)) +
+    Math.max(
+      0,
+      ...thresholds.unansweredQuestionTiers.map((tier) => tier.points),
+    ) +
+    scores.creatorReplyRate +
+    scores.monetizationSignals;
+  const normalizedScore =
+    maximumRawScore > 0 ? Math.round((score / maximumRawScore) * 10) : 0;
 
   const failures: string[] = [];
   if (!subscribersInRange) {
@@ -83,7 +103,7 @@ export function scoreLead(metrics: LeadMetrics, config: Config): LeadResult {
   const result: LeadResult = {
     input: metrics.input,
     status: failures.length === 0 ? "PASS" : "FAIL",
-    score: Math.min(10, score),
+    score: Math.min(10, normalizedScore),
     name: metrics.name,
     handle: metrics.handle,
     subs: metrics.subs,
@@ -91,6 +111,9 @@ export function scoreLead(metrics: LeadMetrics, config: Config): LeadResult {
     avgComments: metrics.avgComments,
     totalComments: metrics.totalComments,
     creatorReplies: metrics.creatorReplies,
+    creatorReplyRate: metrics.creatorReplyRate,
+    questionThreads: metrics.questionThreads,
+    unansweredQuestions: metrics.unansweredQuestions,
     moneySignals: moneySignals.join(" "),
     emailInDescription: email,
     links: links.join(" "),
@@ -99,5 +122,7 @@ export function scoreLead(metrics: LeadMetrics, config: Config): LeadResult {
   if (metrics.daysSinceUpload !== undefined)
     result.daysSinceUpload = metrics.daysSinceUpload;
   if (failures.length > 0) result.why = failures.join("; ");
+  else if (metrics.creatorReplyRate > thresholds.creatorReplyRateNoteThreshold)
+    result.why = "creator already answers almost everything";
   return result;
 }

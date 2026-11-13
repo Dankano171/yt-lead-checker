@@ -132,9 +132,13 @@ program
     const failed = run.results.filter((result) => result.status === "FAIL");
     console.log(`Last run: ${run.runAt || "unknown"}`);
     console.log(`PASS: ${passed.length}  FAIL: ${failed.length}`);
-    console.log("\nTop 20 by score:");
+    console.log("\nTop 20 by weekly-report value score:");
     for (const result of [...run.results]
-      .sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
+      .sort(
+        (a, b) =>
+          (b.score ?? -1) - (a.score ?? -1) ||
+          (b.unansweredQuestions ?? -1) - (a.unansweredQuestions ?? -1),
+      )
       .slice(0, 20)) {
       console.log(displayResult(result));
     }

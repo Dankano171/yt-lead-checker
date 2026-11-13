@@ -10,9 +10,12 @@ const qualifyingMetrics = {
   uploads30: 2,
   daysSinceUpload: 1,
   avgComments: 200,
-  totalComments: 100,
+  totalComments: 200,
   commentEnabledVideos: 1,
   creatorReplies: 3,
+  creatorReplyRate: 10,
+  questionThreads: 10,
+  unansweredQuestions: 10,
   description:
     "Join my Patreon course at https://example.com and email me@test.example",
   url: "https://www.youtube.com/channel/UC",
@@ -27,6 +30,42 @@ describe("scoreLead", () => {
     expect(result.moneySignals).toBe("patreon course");
     expect(result.links).toBe("https://example.com");
     expect(result.emailInDescription).toBe("me@test.example");
+  });
+
+  it("uses unanswered questions and an engaged reply rate for scoring", () => {
+    const result = scoreLead(
+      {
+        ...qualifyingMetrics,
+        totalComments: 100,
+        unansweredQuestions: 5,
+        creatorReplyRate: 70,
+      },
+      DEFAULT_CONFIG,
+    );
+
+    expect(result.score).toBe(8);
+    expect(result.creatorReplyRate).toBe(70);
+    expect(result.questionThreads).toBe(10);
+    expect(result.unansweredQuestions).toBe(5);
+  });
+
+  it("does not award reply-rate points above the engaged range", () => {
+    const result = scoreLead(
+      { ...qualifyingMetrics, creatorReplyRate: 70.01 },
+      DEFAULT_CONFIG,
+    );
+
+    expect(result.score).toBe(9);
+  });
+
+  it("notes passing channels whose creator reply rate exceeds the threshold", () => {
+    const result = scoreLead(
+      { ...qualifyingMetrics, creatorReplyRate: 90.01 },
+      DEFAULT_CONFIG,
+    );
+
+    expect(result.status).toBe("PASS");
+    expect(result.why).toBe("creator already answers almost everything");
   });
 
   it("adds a near_cap note for channels above the cap and within 1.5x", () => {

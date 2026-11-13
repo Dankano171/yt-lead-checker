@@ -37,6 +37,14 @@ export interface SearchResult {
 }
 
 export interface CommentThread {
+  snippet?: {
+    topLevelComment?: {
+      snippet?: {
+        textDisplay?: string;
+        textOriginal?: string;
+      };
+    };
+  };
   replies?: {
     comments?: Array<{
       snippet?: {

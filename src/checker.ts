@@ -47,7 +47,10 @@ export async function checkLeads(options: CheckOptions): Promise<CheckSummary> {
     : (previous.results ?? []).filter(
         (result) =>
           (result.status === "PASS" || result.status === "FAIL") &&
-          typeof result.totalComments === "number",
+          typeof result.totalComments === "number" &&
+          typeof result.creatorReplyRate === "number" &&
+          typeof result.questionThreads === "number" &&
+          typeof result.unansweredQuestions === "number",
       );
   const completed = new Set(
     results.map((result) => normalizeInput(result.input)),
@@ -220,6 +223,9 @@ async function analyzeChannel(
     totalComments: 0,
     commentEnabledVideos: 0,
     creatorReplies: 0,
+    creatorReplyRate: 0,
+    questionThreads: 0,
+    unansweredQuestions: 0,
     description,
     url: `https://www.youtube.com/channel/${channel.id}`,
   };
@@ -292,10 +298,12 @@ async function analyzeChannel(
         mostCommented.video.id,
         config.maxCommentThreads,
       );
-      metrics.creatorReplies = creatorReplyTally(
-        threads.items ?? [],
-        channel.id,
-      );
+      const sample = threads.items ?? [];
+      const replyStats = analyzeCommentThreads(sample, channel.id);
+      metrics.creatorReplies = replyStats.creatorReplies;
+      metrics.creatorReplyRate = replyStats.creatorReplyRate;
+      metrics.questionThreads = replyStats.questionThreads;
+      metrics.unansweredQuestions = replyStats.unansweredQuestions;
     } catch (error) {
       if (
         error instanceof YouTubeApiError &&
@@ -340,13 +348,46 @@ function parseVideoDuration(duration: string | undefined): number | undefined {
   );
 }
 
-function creatorReplyTally(
+function analyzeCommentThreads(
   threads: CommentThread[],
   channelId: string,
-): number {
-  return threads.filter((thread) =>
-    (thread.replies?.comments ?? []).some(
+): {
+  creatorReplies: number;
+  creatorReplyRate: number;
+  questionThreads: number;
+  unansweredQuestions: number;
+} {
+  let creatorReplies = 0;
+  let questionThreads = 0;
+  let unansweredQuestions = 0;
+  for (const thread of threads) {
+    const hasCreatorReply = (thread.replies?.comments ?? []).some(
       (reply) => reply.snippet?.authorChannelId?.value === channelId,
-    ),
-  ).length;
+    );
+    if (hasCreatorReply) creatorReplies += 1;
+    const text =
+      thread.snippet?.topLevelComment?.snippet?.textDisplay ??
+      thread.snippet?.topLevelComment?.snippet?.textOriginal ??
+      "";
+    if (isQuestionThread(text)) {
+      questionThreads += 1;
+      if (!hasCreatorReply) unansweredQuestions += 1;
+    }
+  }
+  return {
+    creatorReplies,
+    creatorReplyRate:
+      threads.length === 0 ? 0 : (creatorReplies / threads.length) * 100,
+    questionThreads,
+    unansweredQuestions,
+  };
+}
+
+function isQuestionThread(text: string): boolean {
+  return (
+    text.includes("?") ||
+    /^(?:who|what|when|where|why|how|which|whose|whom|is|are|am|was|were|do|does|did|can|could|will|would|should|shall|has|have|had|may|might|must)\b/i.test(
+      text.trim(),
+    )
+  );
 }

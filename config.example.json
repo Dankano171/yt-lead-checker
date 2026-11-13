@@ -10,20 +10,25 @@
     "minimumTotalComments": 100,
     "uploadsWindowDays": 30,
     "minimumUploads": 2,
-    "commentAverageTiers": [
+    "commentTotalTiers": [
       { "minimum": 200, "points": 3 },
       { "minimum": 100, "points": 2 },
       { "minimum": 50, "points": 1 }
     ],
-    "creatorReplyTiers": [
-      { "minimum": 3, "points": 2 },
-      { "minimum": 1, "points": 1 }
-    ]
+    "unansweredQuestionTiers": [
+      { "minimum": 10, "points": 3 },
+      { "minimum": 5, "points": 2 },
+      { "minimum": 2, "points": 1 }
+    ],
+    "creatorReplyRateMin": 5,
+    "creatorReplyRateMax": 70,
+    "creatorReplyRateNoteThreshold": 90
   },
   "scores": {
     "subscribersInRange": 1,
     "uploadsQualified": 2,
-    "monetizationSignals": 2
+    "monetizationSignals": 2,
+    "creatorReplyRate": 1
   },
   "monetizationSignals": [
     "patreon",
@@ -40,7 +45,7 @@
     "sponsor",
     "shop"
   ],
-  "maxCommentThreads": 50,
+  "maxCommentThreads": 100,
   "maxDescriptionLinks": 10,
   "retries": 3,
   "retryBaseDelayMs": 500

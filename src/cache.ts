@@ -43,6 +43,14 @@ export class LeadCache {
       delete this.data.channels[channelId];
       return undefined;
     }
+    if (
+      typeof entry.metrics.creatorReplyRate !== "number" ||
+      typeof entry.metrics.questionThreads !== "number" ||
+      typeof entry.metrics.unansweredQuestions !== "number"
+    ) {
+      delete this.data.channels[channelId];
+      return undefined;
+    }
     return entry.metrics;
   }
 

@@ -123,18 +123,38 @@ describe("checkLeads", () => {
       }
       if (url.pathname.endsWith("/commentThreads")) {
         return jsonResponse({
-          items: Array.from({ length: 3 }, () => ({
-            replies: {
-              comments: [
-                {
+          items: [
+            ...Array.from({ length: 10 }, (_, index) => ({
+              snippet: {
+                topLevelComment: {
                   snippet: {
-                    authorChannelId: { value: channelId },
-                    textDisplay: "private raw comment",
+                    textDisplay:
+                      index === 0
+                        ? "private raw comment?"
+                        : index === 9
+                          ? "How does this work"
+                          : `What is question ${index}?`,
                   },
                 },
-              ],
+              },
+            })),
+            {
+              snippet: {
+                topLevelComment: {
+                  snippet: { textDisplay: "A nice video" },
+                },
+              },
+              replies: {
+                comments: [
+                  {
+                    snippet: {
+                      authorChannelId: { value: channelId },
+                    },
+                  },
+                ],
+              },
             },
-          })),
+          ],
         });
       }
       return jsonResponse({ items: [] });
@@ -146,8 +166,12 @@ describe("checkLeads", () => {
     expect(result.results[0]?.status).toBe("PASS");
     expect(result.results[0]?.score).toBe(10);
     expect(result.results[0]?.totalComments).toBe(1010);
-    expect(result.results[0]?.creatorReplies).toBe(3);
+    expect(result.results[0]?.creatorReplies).toBe(1);
+    expect(result.results[0]?.creatorReplyRate).toBeCloseTo(100 / 11);
+    expect(result.results[0]?.questionThreads).toBe(10);
+    expect(result.results[0]?.unansweredQuestions).toBe(10);
     expect(result.results[0]?.emailInDescription).toBe("creator@example.com");
+    expect(quota.used).toBe(4);
     expect(result.stopped).toBeUndefined();
     expect(fetchImpl).toHaveBeenCalledTimes(4);
     const videoRequest = fetchImpl.mock.calls
@@ -156,10 +180,25 @@ describe("checkLeads", () => {
     expect(videoRequest?.searchParams.get("part")).toBe(
       "snippet,statistics,contentDetails",
     );
+    const commentRequest = fetchImpl.mock.calls
+      .map(([input]) => new URL(input.toString()))
+      .find((url) => url.pathname.endsWith("/commentThreads"));
+    expect(commentRequest?.searchParams.get("maxResults")).toBe("100");
+    expect(commentRequest?.searchParams.get("order")).toBe("relevance");
     expect(cache).not.toContain("private raw comment");
-    expect(await readFile(join(directory, "results.csv"), "utf8")).toContain(
-      "creator@example.com",
+    const csv = await readFile(join(directory, "results.csv"), "utf8");
+    expect(csv).toContain(
+      "creatorReplyRate,questionThreads,unansweredQuestions",
     );
+    expect(csv).toContain("creator@example.com");
+    const json = await readFile(join(directory, "results.json"), "utf8");
+    expect(json).toContain('"questionThreads": 10');
+    expect(json).toContain('"unansweredQuestions": 10');
+    expect(json).not.toContain("private raw comment");
+    const savedResults = JSON.parse(json) as {
+      results: Array<{ creatorReplyRate: number }>;
+    };
+    expect(savedResults.results[0]?.creatorReplyRate).toBeCloseTo(100 / 11);
   });
 
   it("handles comment-disabled videos as a qualification failure", async () => {
