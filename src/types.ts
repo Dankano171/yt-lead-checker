@@ -42,7 +42,7 @@ export interface LeadResult {
   uploads30?: number;
   daysSinceUpload?: number;
   avgComments?: number;
-  totalComments5?: number;
+  totalComments?: number;
   creatorReplies?: number;
   moneySignals?: string;
   emailInDescription?: string;
@@ -77,6 +77,7 @@ export interface UploadedVideo {
   id: string;
   snippet: { publishedAt: string };
   statistics?: { commentCount?: string };
+  contentDetails?: { duration?: string };
 }
 
 export interface YouTubeClientOptions {

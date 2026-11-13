@@ -39,6 +39,10 @@ export class LeadCache {
       delete this.data.channels[channelId];
       return undefined;
     }
+    if (typeof entry.metrics.totalComments !== "number") {
+      delete this.data.channels[channelId];
+      return undefined;
+    }
     return entry.metrics;
   }
 

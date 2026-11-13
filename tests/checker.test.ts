@@ -7,6 +7,7 @@ import { checkLeads } from "../src/checker.js";
 import { DEFAULT_CONFIG } from "../src/config.js";
 import { DailyQuota } from "../src/quota.js";
 import { YouTubeClient } from "../src/youtube.js";
+import type { Config } from "../src/types.js";
 
 const channelId = `UC${"a".repeat(22)}`;
 const now = new Date("2025-01-30T00:00:00.000Z");
@@ -50,11 +51,16 @@ function makeClient(
 async function run(
   directory: string,
   client: YouTubeClient,
-  options: { inputs?: string[]; refresh?: boolean; maxSearch?: number } = {},
+  options: {
+    inputs?: string[];
+    refresh?: boolean;
+    maxSearch?: number;
+    config?: Config;
+  } = {},
 ) {
   return checkLeads({
     inputs: options.inputs ?? [channelId],
-    config: DEFAULT_CONFIG,
+    config: options.config ?? DEFAULT_CONFIG,
     client,
     cache: await LeadCache.open(join(directory, "cache.json")),
     outputPath: join(directory, "results.json"),
@@ -111,6 +117,7 @@ describe("checkLeads", () => {
               ).toISOString(),
             },
             statistics: { commentCount: String(200 + index) },
+            contentDetails: { duration: "PT2M" },
           })),
         });
       }
@@ -138,10 +145,17 @@ describe("checkLeads", () => {
 
     expect(result.results[0]?.status).toBe("PASS");
     expect(result.results[0]?.score).toBe(10);
+    expect(result.results[0]?.totalComments).toBe(1010);
     expect(result.results[0]?.creatorReplies).toBe(3);
     expect(result.results[0]?.emailInDescription).toBe("creator@example.com");
     expect(result.stopped).toBeUndefined();
     expect(fetchImpl).toHaveBeenCalledTimes(4);
+    const videoRequest = fetchImpl.mock.calls
+      .map(([input]) => new URL(input.toString()))
+      .find((url) => url.pathname.endsWith("/videos"));
+    expect(videoRequest?.searchParams.get("part")).toBe(
+      "snippet,statistics,contentDetails",
+    );
     expect(cache).not.toContain("private raw comment");
     expect(await readFile(join(directory, "results.csv"), "utf8")).toContain(
       "creator@example.com",
@@ -181,6 +195,7 @@ describe("checkLeads", () => {
               id: "video",
               snippet: { publishedAt: now.toISOString() },
               statistics: { commentCount: "100" },
+              contentDetails: { duration: "PT2M" },
             },
           ],
         });
@@ -204,6 +219,123 @@ describe("checkLeads", () => {
     expect(result.results[0]?.status).toBe("FAIL");
     expect(result.results[0]?.why).toContain("comments disabled");
     expect(fetchImpl).toHaveBeenCalledTimes(4);
+  });
+
+  it("counts all eligible videos in the configured window and excludes shorts", async () => {
+    const directory = await makeDirectory();
+    const quota = await DailyQuota.open(
+      join(directory, "usage.json"),
+      9000,
+      now,
+    );
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(input.toString());
+      if (url.pathname.endsWith("/channels")) {
+        return jsonResponse({
+          items: [
+            {
+              id: channelId,
+              snippet: { title: "Many uploads" },
+              statistics: { subscriberCount: "50000" },
+              contentDetails: { relatedPlaylists: { uploads: "uploads" } },
+            },
+          ],
+        });
+      }
+      if (url.pathname.endsWith("/playlistItems")) {
+        expect(url.searchParams.get("maxResults")).toBe("20");
+        return jsonResponse({
+          items: Array.from({ length: 20 }, (_, index) => ({
+            contentDetails: { videoId: `video-${index}` },
+          })),
+        });
+      }
+      if (url.pathname.endsWith("/videos")) {
+        return jsonResponse({
+          items: Array.from({ length: 20 }, (_, index) => ({
+            id: `video-${index}`,
+            snippet: {
+              publishedAt: new Date(
+                now.getTime() - index * 86400000,
+              ).toISOString(),
+            },
+            statistics: { commentCount: index < 7 ? "15" : "1000" },
+            contentDetails: {
+              duration: index < 7 ? "PT1M10S" : "PT1M9S",
+            },
+          })),
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    const result = await run(directory, makeClient(fetchImpl, quota));
+
+    expect(result.results[0]?.status).toBe("PASS");
+    expect(result.results[0]?.totalComments).toBe(105);
+  });
+
+  it("applies the configured comment window and minimum", async () => {
+    const directory = await makeDirectory();
+    const quota = await DailyQuota.open(
+      join(directory, "usage.json"),
+      9000,
+      now,
+    );
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(input.toString());
+      if (url.pathname.endsWith("/channels")) {
+        return jsonResponse({
+          items: [
+            {
+              id: channelId,
+              snippet: { title: "Recent uploads" },
+              statistics: { subscriberCount: "50000" },
+              contentDetails: { relatedPlaylists: { uploads: "uploads" } },
+            },
+          ],
+        });
+      }
+      if (url.pathname.endsWith("/playlistItems")) {
+        return jsonResponse({
+          items: Array.from({ length: 20 }, (_, index) => ({
+            contentDetails: { videoId: `video-${index}` },
+          })),
+        });
+      }
+      if (url.pathname.endsWith("/videos")) {
+        return jsonResponse({
+          items: Array.from({ length: 20 }, (_, index) => ({
+            id: `video-${index}`,
+            snippet: {
+              publishedAt: new Date(
+                now.getTime() - index * 86400000,
+              ).toISOString(),
+            },
+            statistics: { commentCount: "15" },
+            contentDetails: { duration: "PT2M" },
+          })),
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      thresholds: {
+        ...DEFAULT_CONFIG.thresholds,
+        uploadsWindowDays: 3,
+        minimumTotalComments: 61,
+      },
+    };
+
+    const result = await run(directory, makeClient(fetchImpl, quota), {
+      config,
+    });
+
+    expect(result.results[0]?.status).toBe("FAIL");
+    expect(result.results[0]?.totalComments).toBe(60);
+    expect(result.results[0]?.why).toContain("minimum 61");
+    expect(result.results[0]?.why).toContain("in 3 days");
   });
 
   it("stops at the quota budget and resumes without rechecking completed leads", async () => {

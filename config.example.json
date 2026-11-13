@@ -5,7 +5,7 @@
   "thresholds": {
     "subscriberMin": 10000,
     "subscriberMax": 500000,
-    "recentVideoCount": 5,
+    "recentVideoCount": 20,
     "minimumCommentEnabledRecentVideos": 1,
     "minimumTotalComments": 100,
     "uploadsWindowDays": 30,

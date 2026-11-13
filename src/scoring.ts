@@ -8,7 +8,7 @@ export interface LeadMetrics {
   uploads30: number;
   daysSinceUpload?: number;
   avgComments: number;
-  totalComments5: number;
+  totalComments: number;
   commentEnabledVideos: number;
   creatorReplies: number;
   description: string;
@@ -51,11 +51,16 @@ export function scoreLead(metrics: LeadMetrics, config: Config): LeadResult {
     failures.push(
       `subscribers ${metrics.subs} outside ${thresholds.subscriberMin}-${thresholds.subscriberMax}`,
     );
+    if (
+      metrics.subs > thresholds.subscriberMax &&
+      metrics.subs <= thresholds.subscriberMax * 1.5
+    )
+      failures.push("near_cap");
   }
   if (!commentsEnabled) failures.push("comments disabled on recent videos");
-  if (metrics.totalComments5 < thresholds.minimumTotalComments) {
+  if (metrics.totalComments < thresholds.minimumTotalComments) {
     failures.push(
-      `${metrics.totalComments5} comments across recent videos (minimum ${thresholds.minimumTotalComments})`,
+      `${metrics.totalComments} comments in ${thresholds.uploadsWindowDays} days (minimum ${thresholds.minimumTotalComments})`,
     );
   }
   if (!uploadsQualified) {
@@ -84,7 +89,7 @@ export function scoreLead(metrics: LeadMetrics, config: Config): LeadResult {
     subs: metrics.subs,
     uploads30: metrics.uploads30,
     avgComments: metrics.avgComments,
-    totalComments5: metrics.totalComments5,
+    totalComments: metrics.totalComments,
     creatorReplies: metrics.creatorReplies,
     moneySignals: moneySignals.join(" "),
     emailInDescription: email,

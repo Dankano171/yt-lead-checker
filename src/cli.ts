@@ -45,8 +45,7 @@ function categorizeFailure(reason: string): string {
     return "Subscribers outside configured range";
   if (reason.startsWith("comments disabled"))
     return "Comments disabled on recent videos";
-  if (reason.includes("comments across recent videos"))
-    return "Below minimum recent comments";
+  if (reason.includes("comments in ")) return "Below minimum recent comments";
   if (reason.includes("uploads in "))
     return "Below minimum uploads in the lookback window";
   return reason;

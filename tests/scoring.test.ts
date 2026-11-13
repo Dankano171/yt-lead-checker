@@ -10,7 +10,7 @@ const qualifyingMetrics = {
   uploads30: 2,
   daysSinceUpload: 1,
   avgComments: 200,
-  totalComments5: 100,
+  totalComments: 100,
   commentEnabledVideos: 1,
   creatorReplies: 3,
   description:
@@ -29,6 +29,48 @@ describe("scoreLead", () => {
     expect(result.emailInDescription).toBe("me@test.example");
   });
 
+  it("adds a near_cap note for channels above the cap and within 1.5x", () => {
+    const result = scoreLead(
+      { ...qualifyingMetrics, subs: 600000 },
+      DEFAULT_CONFIG,
+    );
+
+    expect(result.status).toBe("FAIL");
+    expect(result.why).toContain("near_cap");
+  });
+
+  it("uses the configured subscriber cap for qualification and near_cap", () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      thresholds: {
+        ...DEFAULT_CONFIG.thresholds,
+        subscriberMax: 100000,
+      },
+    };
+    const result = scoreLead({ ...qualifyingMetrics, subs: 120000 }, config);
+
+    expect(result.status).toBe("FAIL");
+    expect(result.why).toContain("near_cap");
+  });
+
+  it("does not add near_cap beyond 1.5x the subscriber cap", () => {
+    const result = scoreLead(
+      { ...qualifyingMetrics, subs: 750001 },
+      DEFAULT_CONFIG,
+    );
+
+    expect(result.why).not.toContain("near_cap");
+  });
+
+  it("does not mark channels below the subscriber minimum as near_cap", () => {
+    const result = scoreLead(
+      { ...qualifyingMetrics, subs: 9999 },
+      DEFAULT_CONFIG,
+    );
+
+    expect(result.why).not.toContain("near_cap");
+  });
+
   it("explains every failed hard requirement", () => {
     const result = scoreLead(
       {
@@ -36,7 +78,7 @@ describe("scoreLead", () => {
         subs: 9999,
         uploads30: 1,
         avgComments: 0,
-        totalComments5: 10,
+        totalComments: 10,
         commentEnabledVideos: 0,
       },
       DEFAULT_CONFIG,

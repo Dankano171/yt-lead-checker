@@ -105,7 +105,7 @@ export class YouTubeClient {
   videos(ids: string[]): Promise<ApiList<UploadedVideo>> {
     return this.request(
       "videos",
-      { part: "snippet,statistics", id: ids.join(",") },
+      { part: "snippet,statistics,contentDetails", id: ids.join(",") },
       1,
     );
   }

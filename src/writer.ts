@@ -11,7 +11,7 @@ export const RESULT_COLUMNS = [
   "uploads30",
   "daysSinceUpload",
   "avgComments",
-  "totalComments5",
+  "totalComments",
   "creatorReplies",
   "moneySignals",
   "emailInDescription",

@@ -45,7 +45,9 @@ export async function checkLeads(options: CheckOptions): Promise<CheckSummary> {
   const results = options.refresh
     ? []
     : (previous.results ?? []).filter(
-        (result) => result.status === "PASS" || result.status === "FAIL",
+        (result) =>
+          (result.status === "PASS" || result.status === "FAIL") &&
+          typeof result.totalComments === "number",
       );
   const completed = new Set(
     results.map((result) => normalizeInput(result.input)),
@@ -215,7 +217,7 @@ async function analyzeChannel(
     subs: Number(channel.statistics?.subscriberCount ?? 0),
     uploads30: 0,
     avgComments: 0,
-    totalComments5: 0,
+    totalComments: 0,
     commentEnabledVideos: 0,
     creatorReplies: 0,
     description,
@@ -242,11 +244,22 @@ async function analyzeChannel(
         video.statistics?.commentCount === undefined
           ? undefined
           : Number(video.statistics.commentCount),
+      durationSeconds: parseVideoDuration(video.contentDetails?.duration),
     }))
     .filter((item) => Number.isFinite(item.publishedAt))
     .sort((a, b) => b.publishedAt - a.publishedAt);
-  const recent = datedVideos.slice(0, config.thresholds.recentVideoCount);
-  const enabled = recent.filter((video) => video.commentCount !== undefined);
+  const recentWindow = datedVideos.filter((video) => {
+    const age = now - video.publishedAt;
+    return (
+      age >= 0 &&
+      age <= config.thresholds.uploadsWindowDays * DAY_MS &&
+      video.durationSeconds !== undefined &&
+      video.durationSeconds >= 70
+    );
+  });
+  const enabled = recentWindow.filter(
+    (video) => video.commentCount !== undefined,
+  );
   const commentsTotal = enabled.reduce(
     (sum, video) => sum + (video.commentCount ?? 0),
     0,
@@ -261,14 +274,16 @@ async function analyzeChannel(
     uploads30,
     avgComments:
       enabled.length > 0 ? Math.round(commentsTotal / enabled.length) : 0,
-    totalComments5: commentsTotal,
+    totalComments: commentsTotal,
     commentEnabledVideos: enabled.length,
     ...(latest === undefined
       ? {}
       : { daysSinceUpload: Math.max(0, Math.round((now - latest) / DAY_MS)) }),
   };
 
-  const mostCommented = [...recent]
+  const mostCommented = [
+    ...recentWindow.slice(0, config.thresholds.recentVideoCount),
+  ]
     .filter((video) => (video.commentCount ?? 0) > 0)
     .sort((a, b) => (b.commentCount ?? 0) - (a.commentCount ?? 0))[0];
   if (mostCommented) {
@@ -290,13 +305,13 @@ async function analyzeChannel(
           0,
           metrics.commentEnabledVideos - 1,
         );
-        metrics.totalComments5 = Math.max(
+        metrics.totalComments = Math.max(
           0,
-          metrics.totalComments5 - (mostCommented.commentCount ?? 0),
+          metrics.totalComments - (mostCommented.commentCount ?? 0),
         );
         metrics.avgComments =
           metrics.commentEnabledVideos > 0
-            ? Math.round(metrics.totalComments5 / metrics.commentEnabledVideos)
+            ? Math.round(metrics.totalComments / metrics.commentEnabledVideos)
             : 0;
       } else if (
         !(error instanceof YouTubeApiError) ||
@@ -308,6 +323,21 @@ async function analyzeChannel(
   }
 
   return metrics;
+}
+
+function parseVideoDuration(duration: string | undefined): number | undefined {
+  if (duration === undefined) return undefined;
+  const match =
+    /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/.exec(
+      duration,
+    );
+  if (!match) return undefined;
+  return (
+    Number(match[1] ?? 0) * 86400 +
+    Number(match[2] ?? 0) * 3600 +
+    Number(match[3] ?? 0) * 60 +
+    Number(match[4] ?? 0)
+  );
 }
 
 function creatorReplyTally(

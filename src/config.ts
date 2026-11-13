@@ -8,7 +8,7 @@ export const DEFAULT_CONFIG: Config = {
   thresholds: {
     subscriberMin: 10000,
     subscriberMax: 500000,
-    recentVideoCount: 5,
+    recentVideoCount: 20,
     minimumCommentEnabledRecentVideos: 1,
     minimumTotalComments: 100,
     uploadsWindowDays: 30,
@@ -236,9 +236,9 @@ export function mergeConfig(input: unknown): Config {
   if (config.cacheTtlDays > 30) {
     throw new Error("Invalid config: cacheTtlDays cannot exceed 30 days.");
   }
-  if (config.uploadLookbackCount > 50 || config.maxCommentThreads > 50) {
+  if (config.uploadLookbackCount > 20 || config.maxCommentThreads > 50) {
     throw new Error(
-      "Invalid config: uploadLookbackCount and maxCommentThreads cannot exceed 50.",
+      "Invalid config: uploadLookbackCount cannot exceed 20 and maxCommentThreads cannot exceed 50.",
     );
   }
   if (config.thresholds.recentVideoCount > config.uploadLookbackCount) {
@@ -253,10 +253,10 @@ export function mergeConfig(input: unknown): Config {
   }
   if (
     config.thresholds.minimumCommentEnabledRecentVideos >
-    config.thresholds.recentVideoCount
+    config.uploadLookbackCount
   ) {
     throw new Error(
-      "Invalid config: minimumCommentEnabledRecentVideos cannot exceed recentVideoCount.",
+      "Invalid config: minimumCommentEnabledRecentVideos cannot exceed uploadLookbackCount.",
     );
   }
   return config;
